@@ -1,249 +1,228 @@
-#include <stdio.h>
+#include "queue.h"
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
-#define MAX_USERS 20
-#define MAX_ITEMS 10
-#define MAX_NAME_LENGTH 50
-#define USER_FILE "userData.txt"
-#define STORE_FILE "storeData.txt"
 
-typedef struct {
-    int id;
-    float price;
-    char name[MAX_NAME_LENGTH];
-    int quantity;
-} Item;
+typedef struct node
+{
+  void *data;
+  struct node *next;
+} node;
 
-typedef struct {
-    int id;
-    char name[MAX_NAME_LENGTH];
-    Item items[MAX_ITEMS];
-    int itemCount;
-} User;
+node *createNode(void *data, size_t required_size)
+{
+  node *newnode = (node *)malloc(sizeof(node));
+  if(newnode == NULL)
+    return NULL;
 
-typedef struct {
-    User users[MAX_USERS];
-    int size;
-    int front;
-    int rear;
-     pthread_mutex_t *mutex;
-} SQUEUE;
+  newnode->data = malloc(required_size);
+  if(newnode->data == NULL)
+  {
+    free(newnode);
+    return NULL;
+  } //void *memcpy(void *to, const void *from, size_t numBytes);
+  memcpy(newnode->data, data, required_size);
+  newnode->next = NULL;
 
-void DEF(SQUEUE *queue) {
-     pthread_mutex_lock(queue->mutex);
-
-    queue->size = 0;
-    queue->front = 0;
-    queue->rear = -1;
-    pthread_mutex_unlock(queue->mutex);
+  return newnode;
 }
 
-void enqueue(SQUEUE *queue, User user) {
-      pthread_mutex_lock(queue->mutex);
-    if (queue->size >= MAX_USERS) {
-        fprintf(stderr, "Queue is full\n");
-        return;
-    }
+typedef struct queue
+{
+  size_t size;
+  size_t allocated_size;
+  node *head;
+  node *tail;
+   pthread_mutex_t mutex ;
+} queue;
 
-    queue->rear = (queue->rear + 1) % MAX_USERS;
-    queue->users[queue->rear] = user;
-    queue->size++;
-    pthread_mutex_unlock(queue->mutex);
+queue *createQueue(size_t required_size)
+{
+  queue *q = (queue *)malloc(sizeof(queue));
+  if(q == NULL)
+    return NULL;
+
+  q->allocated_size = required_size;
+  q->size = 0;
+  q->head = q->tail = NULL;
+   
+  return q;
 }
 
-User dequeue(SQUEUE *queue) {
-     pthread_mutex_lock(queue->mutex);
-    User user = {0};  // Default values for error condition
+queue *enqueue(queue *q, void *data)
+{
+  
+   pthread_mutex_lock(q->mutex);
+  if(q == NULL)
+    return NULL;
 
-    if (queue->size <= 0) {
-        fprintf(stderr, "Queue is empty\n");
-        return user;
-    }
+  node *newnode = createNode(data, q->allocated_size);
+  if(newnode == NULL)
+  {
+    return NULL;
+  }
 
-    user = queue->users[queue->front];
-    queue->front = (queue->front + 1) % MAX_USERS;
-    queue->size--;
+  if(q->size == 0)
+  { 
+    q->head = q->tail = newnode;
+  }
+  else
+  {
+    q->tail->next = newnode;
+    q->tail = newnode;
+  }
 
-pthread_mutex_unlock(queue->mutex); 
-    return user;    
-    
+  q->size++;
+ pthread_mutex_unlock(q->mutex);
+  return q;
 }
 
-void printUser(User user) {
-    printf("User ID: %d, Name: %s\n", user.id, user.name);
-    printf("Items Purchased:\n");
-    for (int i = 0; i < user.itemCount; ++i) {
-        printf("  Item ID: %d, Name: %s, Price: %.2f, Quantity: %d\n",
-               user.items[i].id, user.items[i].name, user.items[i].price, user.items[i].quantity);
-    }
+queue *dequeue(queue *q, void *data)
+{ pthread_mutex_lock(q->mutex);
+  if(q == NULL)
+    return NULL;
+  if(q->size == 0)
+    return NULL;
+
+  node *toDelete = q->head;
+  if(q->size == 1)
+  {
+    memcpy(data, toDelete->data, q->allocated_size);
+    free(toDelete->data);
+    free(toDelete);
+    q->head = q->tail = NULL;
+    q->size--;
+    return q;
+  }
+
+  q->head = q->head->next;
+  memcpy(data, toDelete->data, q->allocated_size);
+  free(toDelete->data);
+  free(toDelete);
+  q->size--;
+
+pthread_mutex_unlock(q->mutex); 
+  return q;
 }
 
-void saveToFile(const char *filename, User user) {
-    FILE *file = fopen(filename, "a");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
-    }
+queue *front(queue *q, void *data)
+{
+  if(q == NULL)
+    return NULL;
 
-    fprintf(file, "%d %s %d", user.id, user.name, user.itemCount);
+  if(q->size == 0)
+    return NULL;
 
-    for (int i = 0; i < user.itemCount; ++i) {
-        fprintf(file, " %d %s %.2f %d", user.items[i].id, user.items[i].name,
-                user.items[i].price, user.items[i].quantity);
-    }
+  memcpy(data, q->head->data, q->allocated_size);
 
-    fprintf(file, "\n");
-
-    fclose(file);
+  return q;
 }
 
-void loadFromFile(const char *filename, SQUEUE *queue) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
+queue *reverse(queue *q)
+{  pthread_mutex_lock(q->mutex);
+  if(q == NULL)
+    return NULL;
+  if(q->size == 0)
+    return q;
+  else
+  {
+    void *data = malloc(q->allocated_size);
+    if(data != NULL)
+    {
+      dequeue(q, data);
+      reverse(q);
+      enqueue(q, data);
+      free(data);
     }
-
-    User user;
-    while (fscanf(file, "%d %s %d", &user.id, user.name, &user.itemCount) == 3) {
-        for (int i = 0; i < user.itemCount; ++i) {
-            fscanf(file, " %d %s %f %d", &user.items[i].id, user.items[i].name,
-                   &user.items[i].price, &user.items[i].quantity);
-        }
-        enqueue(queue, user);
-    }
-
-    fclose(file);
+    return q;
+  } pthread_mutex_unlock(q->mutex);
 }
 
-void saveStoreToFile(const char *filename, const SQUEUE *queue) {
-    FILE *file = fopen(filename, "w");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
-    }
+queue *clearQueue(queue *q)
+{pthread_mutex_lock(q->mutex);
+  if(q == NULL)
+    return NULL;
 
-    for (int i = 0; i < queue->size; ++i) {
-        User user = queue->users[(queue->front + i) % MAX_USERS];
-
-        fprintf(file, "User ID: %d, Name: %s\n", user.id, user.name);
-        fprintf(file, "Items Purchased:\n");
-
-        for (int j = 0; j < user.itemCount; ++j) {
-            fprintf(file, "  Item ID: %d, Name: %s, Price: %.2f, Quantity: %d\n",
-                    user.items[j].id, user.items[j].name, user.items[j].price, user.items[j].quantity);
-        }
-
-        fprintf(file, "\n");
-    }
-
-    fclose(file);
+  while(!isEmpty(q))
+  {
+    node *temp = q->head;
+    q->head = q->head->next;
+    free(temp->data);
+    free(temp);
+    q->size--;
+  }
+ pthread_mutex_unlock(q->mutex);
+  return q;
 }
 
-void updateStoreFile(const char *filename, const User *user) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
-    }
-
-    FILE *tempFile = fopen("tempStoreData.txt", "w");
-    if (tempFile == NULL) {
-        fprintf(stderr, "Error creating temp file\n");
-        fclose(file);
-        return;
-    }
-
-    int id, quantity;
-    while (fscanf(file, "%d %*s %*f %d", &id, &quantity) == 2) {
-        for (int i = 0; i < user->itemCount; ++i) {
-            if (user->items[i].id == id) {
-                fprintf(tempFile, "%d %s %.2f %d\n", id, user->items[i].name,
-                        user->items[i].price, quantity - user->items[i].quantity);
-            }
-        }
-    }
-
-    fclose(file);
-    fclose(tempFile);
-
-    remove(filename);
-    rename("tempStoreData.txt", filename);
+size_t getSize(queue *q)
+{ 
+    pthread_mutex_lock(q->mutex);
+  if(q == NULL)
+  {
+    return 0;
+  }
+pthread_mutex_unlock(q->mutex);
+  return q->size;
 }
 
-void showAvailableItems(const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
-    }
-
-    printf("Available Items:\n");
-
-    int id, quantity;
-    while (fscanf(file, "%d %*s %*f %d", &id, &quantity) == 2) {
-        printf("Item ID: %d, Quantity: %d\n", id, quantity);
-    }
-
-    fclose(file);
+bool isEmpty(queue *q)
+{
+  return q->size == 0 ? true : false;
 }
 
-float getItemPrice(const char *filename, int itemId) {
-    FILE *file = fopen(filename, "r");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return -1.0; // Indicates error
-    }
+size_t getallocated_size(queue *q)
+{
+  if(q == NULL)
+  {
+    return 0;
+  }
 
-    int id;
-    float price;
-    while (fscanf(file, "%d %*s %f %*d", &id, &price) == 2) {
-        if (id == itemId) {
-            fclose(file);
-            return price;
-        }
-    }
-
-    fclose(file);
-    return -1.0; // Indicates item not found
+  return q->allocated_size;
 }
 
-void buyItemsAtDiscount(const char *filename, const User *user) {
-    FILE *file = fopen(filename, "a");
-    if (file == NULL) {
-        fprintf(stderr, "Error opening file %s\n", filename);
-        return;
-    }
+queue *copyQueue(queue *src)
+{ 
+    pthread_mutex_lock(src->mutex);
+  if(src == NULL)
+  {
+    return NULL;
+  }
 
-    for (int i = 0; i < user->itemCount; ++i) {
-        fprintf(file, "%d %s %.2f %d\n", user->items[i].id, user->items[i].name,
-                user->items[i].price * 0.8, user->items[i].quantity);
-    }
+  queue *newQueue = createQueue(src->allocated_size);
+  if(newQueue == NULL)
+  {
+    return NULL;
+  }
 
-    fclose(file);
+  // Iterate through original queue and copy nodes
+  node *currentOriginalNode = src->head;
+  node *previousNewNode = NULL;
+  while(currentOriginalNode != NULL)
+  {
+    enqueue(newQueue, currentOriginalNode->data);
+    currentOriginalNode = currentOriginalNode->next;
+  }
+pthread_mutex_unlock(src->mutex);
+  return newQueue;
 }
 
-float calculateProfit(const char *storeFile, const char *discountFile) {
-    FILE *storeFilePtr = fopen(storeFile, "r");
-    FILE *discountFilePtr = fopen(discountFile, "r");
 
-    if (storeFilePtr == NULL || discountFilePtr == NULL) {
-        fprintf(stderr, "Error opening files\n");
-        return -1.0; // Indicates error
-    }
+int main(){
+  // only for an example on how to create nd join the thread
+pthread_mutex_t mutex;
 
-    int storeId, discountId, storeQuantity, discountQuantity;
-    float storePrice, discountPrice;
-    float profit = 0.0;
+pthread_mutex_init(&mutex, NULL);
+pthread_t thread1;
+pthread_t thread2;
+int number=2;
 
-    while (fscanf(storeFilePtr, "%d %*s %f %d", &storeId, &storePrice, &storeQuantity) == 3 &&
-           fscanf(discountFilePtr, "%d %*s %f %d", &discountId, &discountPrice, &discountQuantity) == 3) {
-        profit += (storePrice - discountPrice) * discountQuantity;
-    }
+pthread_create(&thread1,NULL,&createQueue,NULL);
+pthread_create(&thread2,NULL,&enqueue,(void*)&number);
 
-    fclose(storeFilePtr);
-    fclose(discountFilePtr);
+pthread_join(thread1,NULL);
+pthread_join(thread2,NULL);
 
-    return profit;
+pthread_mutex_destroy(&mutex);
+return 0;
 }
-
