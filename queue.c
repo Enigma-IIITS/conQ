@@ -70,6 +70,7 @@ queue* dequeue(queue* q, void* data) {
         free(to_delete);
         q->head = q->tail = NULL;
         q->size--;
+        pthread_mutex_unlock(q->mutex);
         return q;
     }
 
@@ -85,31 +86,12 @@ queue* dequeue(queue* q, void* data) {
 
 void front(queue* q, void* data) {
     if (q == NULL)
-        return NULL;
+        return;
 
     if (q->size == 0)
-        return NULL;
+        return;
 
     memcpy(data, q->head->data, q->memsize);
-}
-
-queue* reverse_queue(queue* q) {
-    pthread_mutex_lock(q->mutex);
-    if (q == NULL)
-        return NULL;
-    if (q->size == 0)
-        return q;
-    else {
-        void* data = malloc(q->memsize);
-        if (data != NULL) {
-            dequeue(q, data);
-            reverse_queue(q);
-            enqueue(q, data);
-            free(data);
-        }
-        return q;
-    }
-    pthread_mutex_unlock(q->mutex);
 }
 
 queue* clear_queue(queue* q) {
@@ -169,4 +151,18 @@ queue* copy_queue(queue* src) {
     }
     pthread_mutex_unlock(src->mutex);
     return new_queue;
+}
+
+void destroy_queue(queue* q) {
+    clear_queue(q);
+    free(q);
+}
+
+void display_queue(queue* q, displayer display) {
+    node* current = q->head;
+
+    while (current) {
+        display(current->data);
+        current = current->next;
+    }
 }

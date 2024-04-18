@@ -21,11 +21,13 @@ typedef struct queue {
     pthread_mutex_t* mutex;
 } queue;
 
+typedef void displayer(void*);
+
 /**
  * @param allocSize Size of elements inserted
  * @return queue on success, NULL on error
  */
-queue* create_queue(size_t allocSize);
+queue* create_queue(size_t memsize);
 
 /**
  * @param q The queue
@@ -50,13 +52,6 @@ queue* dequeue(queue* q, void* data);
 void front(queue* q, void* data);
 
 /**
- * @brieft Reverse the queue
- * @param The queue
- * @return q, NULL on error
- */
-queue* reverse_queue(queue* q);
-
-/**
  * @brief Delete all the elements of the queue
  * @param q The queue
  * @return queue on success, NULL on error
@@ -68,7 +63,7 @@ queue* clear_queue(queue* q);
  * This will clear, destroy and free all memory of the queue.
  * @param q Pointer to the queue
  */
-void destroyQueue(queue** q);
+void destroy_queue(queue* q);
 
 /**
  * @param q The queue
@@ -90,7 +85,7 @@ bool is_empty(queue* q);
  * @param q The queue
  * @return allocation size, 0 if queue is NULL
  */
-size_t getAllocationSize(queue* q);
+size_t get_memsize(queue* q);
 
 /**
  * @brief Creates a deep copy of the queue
@@ -99,6 +94,15 @@ size_t getAllocationSize(queue* q);
  * @return The new queue, NULL on error
  */
 queue* copy_queue(queue* src);
+
+/**
+ * @brief Displays all elements of the queue using the custom displayer provided
+ *
+ * @param q the queue to display
+ * @param display the function to call, to display indivisual items
+ * @return NULL
+ */
+void display_queue(queue* q, displayer display);
 
 #ifdef __cplusplus
 }
