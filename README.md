@@ -23,6 +23,6 @@ In this small experimental project, we aim to implement a simple yet efficient, 
 Simply compile all the files using the given Makefile and execute the `test` file.
 
 ```shell
-make
+make test
 ./test
 ```
