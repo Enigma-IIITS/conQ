@@ -8,13 +8,24 @@
 extern "C" {
 #endif
 
-typedef struct queue queue;
+typedef struct node {
+    void* data;
+    struct node* next;
+} node;
+
+typedef struct queue {
+    size_t size;
+    size_t memsize;
+    node* head;
+    node* tail;
+    pthread_mutex_t* mutex;
+} queue;
 
 /**
  * @param allocSize Size of elements inserted
  * @return queue on success, NULL on error
  */
-queue* createQueue(size_t allocSize);
+queue* create_queue(size_t allocSize);
 
 /**
  * @param q The queue
@@ -43,14 +54,14 @@ queue* front(queue* q, void* data);
  * @param The queue
  * @return q, NULL on error
  */
-queue* reverse(queue* q);
+queue* reverse_queue(queue* q);
 
 /**
  * @brief Delete all the elements of the queue
  * @param q The queue
  * @return queue on success, NULL on error
  */
-queue* clearQueue(queue* q);
+queue* clear_queue(queue* q);
 
 /**
  * @brief Destroy the queue
@@ -63,7 +74,7 @@ void destroyQueue(queue** q);
  * @param q The queue
  * @return size_t Size of queue, if queue is NULL 0 is returned.
  */
-size_t getSize(queue* q);
+size_t get_size(queue* q);
 
 /**
  * @brief Check if queue is empty
@@ -71,7 +82,7 @@ size_t getSize(queue* q);
  * @param q The queue
  * @return true if size >= 1, false otherwise,
  */
-bool isEmpty(queue* q);
+bool is_empty(queue* q);
 
 /**
  * @brief Get the current allocation size that queue uses internally
@@ -87,7 +98,7 @@ size_t getAllocationSize(queue* q);
  * @param src The queue to be copied
  * @return The new queue, NULL on error
  */
-queue* copyQueue(queue* src);
+queue* copy_queue(queue* src);
 
 #ifdef __cplusplus
 }
