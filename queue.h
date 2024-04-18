@@ -47,7 +47,7 @@ queue* dequeue(queue* q, void* data);
  * @param data Variable to save the data
  * @return queue on success, NULL on error
  */
-queue* front(queue* q, void* data);
+void front(queue* q, void* data);
 
 /**
  * @brieft Reverse the queue

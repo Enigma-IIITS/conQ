@@ -3,43 +3,32 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct node {
-    void* data;
-    struct node* next;
-} node;
-
-node* createNode(void* data, size_t required_size) {
-    node* newnode = (node*)malloc(sizeof(node));
-    if (newnode == NULL)
+node* create_node(void* data, size_t memsize) {
+    node* new_node = (node*)malloc(sizeof(node));
+    if (new_node == NULL)
         return NULL;
 
-    newnode->data = malloc(required_size);
-    if (newnode->data == NULL) {
-        free(newnode);
+    new_node->data = malloc(memsize);
+    if (new_node->data == NULL) {
+        free(new_node);
         return NULL;
-    } // void *memcpy(void *to, const void *from, size_t numBytes);
-    memcpy(newnode->data, data, required_size);
-    newnode->next = NULL;
+    }
 
-    return newnode;
+    memcpy(new_node->data, data, memsize);
+    new_node->next = NULL;
+
+    return new_node;
 }
 
-typedef struct queue {
-    size_t size;
-    size_t allocated_size;
-    node* head;
-    node* tail;
-    pthread_mutex_t* mutex;
-} queue;
-
-queue* createQueue(size_t required_size) {
+queue* create_queue(size_t memsize) {
     queue* q = (queue*)malloc(sizeof(queue));
     if (q == NULL)
         return NULL;
 
-    q->allocated_size = required_size;
+    q->memsize = memsize;
     q->size = 0;
-    q->head = q->tail = NULL;
+    q->head = NULL;
+    q->tail = NULL;
 
     return q;
 }
@@ -50,16 +39,16 @@ queue* enqueue(queue* q, void* data) {
     if (q == NULL)
         return NULL;
 
-    node* newnode = createNode(data, q->allocated_size);
-    if (newnode == NULL) {
+    node* new_node = create_node(data, q->memsize);
+    if (new_node == NULL) {
         return NULL;
     }
 
     if (q->size == 0) {
-        q->head = q->tail = newnode;
+        q->head = q->tail = new_node;
     } else {
-        q->tail->next = newnode;
-        q->tail = newnode;
+        q->tail->next = new_node;
+        q->tail = new_node;
     }
 
     q->size++;
@@ -74,49 +63,47 @@ queue* dequeue(queue* q, void* data) {
     if (q->size == 0)
         return NULL;
 
-    node* toDelete = q->head;
+    node* to_delete = q->head;
     if (q->size == 1) {
-        memcpy(data, toDelete->data, q->allocated_size);
-        free(toDelete->data);
-        free(toDelete);
+        memcpy(data, to_delete->data, q->memsize);
+        free(to_delete->data);
+        free(to_delete);
         q->head = q->tail = NULL;
         q->size--;
         return q;
     }
 
     q->head = q->head->next;
-    memcpy(data, toDelete->data, q->allocated_size);
-    free(toDelete->data);
-    free(toDelete);
+    memcpy(data, to_delete->data, q->memsize);
+    free(to_delete->data);
+    free(to_delete);
     q->size--;
 
     pthread_mutex_unlock(q->mutex);
     return q;
 }
 
-queue* front(queue* q, void* data) {
+void front(queue* q, void* data) {
     if (q == NULL)
         return NULL;
 
     if (q->size == 0)
         return NULL;
 
-    memcpy(data, q->head->data, q->allocated_size);
-
-    return q;
+    memcpy(data, q->head->data, q->memsize);
 }
 
-queue* reverse(queue* q) {
+queue* reverse_queue(queue* q) {
     pthread_mutex_lock(q->mutex);
     if (q == NULL)
         return NULL;
     if (q->size == 0)
         return q;
     else {
-        void* data = malloc(q->allocated_size);
+        void* data = malloc(q->memsize);
         if (data != NULL) {
             dequeue(q, data);
-            reverse(q);
+            reverse_queue(q);
             enqueue(q, data);
             free(data);
         }
@@ -125,12 +112,12 @@ queue* reverse(queue* q) {
     pthread_mutex_unlock(q->mutex);
 }
 
-queue* clearQueue(queue* q) {
+queue* clear_queue(queue* q) {
     pthread_mutex_lock(q->mutex);
     if (q == NULL)
         return NULL;
 
-    while (!isEmpty(q)) {
+    while (!is_empty(q)) {
         node* temp = q->head;
         q->head = q->head->next;
         free(temp->data);
@@ -141,7 +128,7 @@ queue* clearQueue(queue* q) {
     return q;
 }
 
-size_t getSize(queue* q) {
+size_t get_size(queue* q) {
     pthread_mutex_lock(q->mutex);
     if (q == NULL) {
         return 0;
@@ -150,37 +137,36 @@ size_t getSize(queue* q) {
     return q->size;
 }
 
-bool isEmpty(queue* q) {
+bool is_empty(queue* q) {
     return q->size == 0 ? true : false;
 }
 
-size_t getallocated_size(queue* q) {
+size_t get_memsize(queue* q) {
     if (q == NULL) {
         return 0;
     }
-
-    return q->allocated_size;
+    return q->memsize;
 }
 
-queue* copyQueue(queue* src) {
+queue* copy_queue(queue* src) {
     pthread_mutex_lock(src->mutex);
+
     if (src == NULL) {
         return NULL;
     }
 
-    queue* newQueue = createQueue(src->allocated_size);
-    if (newQueue == NULL) {
+    queue* new_queue = create_queue(src->memsize);
+    if (new_queue == NULL) {
         return NULL;
     }
 
     // Iterate through original queue and copy nodes
-    node* currentOriginalNode = src->head;
-    node* previousNewNode = NULL;
-    while (currentOriginalNode != NULL) {
-        enqueue(newQueue, currentOriginalNode->data);
-        currentOriginalNode = currentOriginalNode->next;
+    node* current = src->head;
+    node* prev_new_node = NULL;
+    while (current != NULL) {
+        enqueue(new_queue, current->data);
+        current = current->next;
     }
     pthread_mutex_unlock(src->mutex);
-    return newQueue;
+    return new_queue;
 }
-
